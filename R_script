@@ -1,0 +1,182 @@
+setwd("C:/Users/Joseph.Madison/Documents/turtle_glyphosate_experiment")
+getwd()
+source("MicrobeMiseq/R/miseqR.R")
+theme_set(theme_bw())
+
+sharedfile = "R_figures/turtle.final.an.unique_list.0.03.norm.shared"
+taxfile = "R_figures/turtle.final.an.unique_list.0.03.cons.taxonomy"
+mapfile = "R_figures/metadata.csv"
+
+mothur_data <- import_mothur(mothur_shared_file = sharedfile, mothur_constaxonomy_file = taxfile)
+mothur_data
+
+map <- read.csv(mapfile)
+map <- sample_data(map)
+rownames(map) <- map$SampleID
+sample_names(map)
+sample_names(mothur_data)
+
+turtle_merge <- merge_phyloseq(mothur_data, map)
+turtle_merge
+
+colnames(tax_table(turtle_merge))
+
+colnames(tax_table(turtle_merge)) <- c("Kingdom", "Phylum", "Class", 
+  "Order", "Family", "Genus", "species")
+
+turtle <- turtle_merge
+turtle
+
+###sample summary###
+# Make a data frame with a column for the read counts of each sample
+sample_sum_df <- data.frame(sum = sample_sums(turtle))
+
+# Histogram of sample read counts
+ggplot(sample_sum_df, aes(x = sum)) + 
+  geom_histogram(color = "black", fill = "indianred", binwidth = 25) +
+  ggtitle("Distribution of sample sequencing depth") + 
+  xlab("Read counts") +
+  theme(axis.title.y = element_blank())
+
+# mean, max and min of sample read counts
+smin <- min(sample_sums(turtle))
+smean <- mean(sample_sums(turtle))
+smax <- max(sample_sums(turtle))
+smin
+smean
+smax
+
+###unconstrained ordination###
+# Scale reads to even depth 
+turtle_scale <- turtle
+
+# Fix month levels in sample_data
+sample_data(turtle_scale)$Time <- factor(
+  sample_data(turtle_scale)$Time, 
+  levels = c("0 hours", "96 hours")
+)
+
+
+# Ordinate
+turtle_pcoa <- ordinate(
+  physeq = turtle_scale, 
+  method = "PCoA", 
+  distance = "bray"
+)
+
+# Plot 
+plot_ordination(
+  physeq = turtle_scale,
+  ordination = turtle_pcoa,
+  color = "Time",
+  shape = "Treatment",
+  title = "PCoA of False-map Turtle Bacterial Communities"
+) + 
+  scale_color_manual(values = c("blue", "red")
+  ) +
+  geom_point(aes(color = Time), alpha = 0.7, size = 4) +
+  geom_point(colour = "grey90", size = 1.5)
+
+###NMDS###
+set.seed(1)
+
+# Ordinate
+turtle_nmds <- ordinate(
+  physeq = turtle_scale, 
+  method = "NMDS", 
+  distance = "bray"
+)
+
+# Plot 
+plot_ordination(
+  physeq = turtle_scale,
+  ordination = turtle_nmds,
+  color = "Time",
+  shape = "Treatment",
+  title = "NMDS of False-map Turtle Bacterial Communities"
+) + 
+  scale_color_manual(values = c("blue", "red")
+  ) +
+  geom_point(aes(color = Time), alpha = 0.7, size = 4) +
+  geom_point(colour = "grey90", size = 1.5) 
+
+
+###PERMANOVA###
+set.seed(1)
+
+# Calculate bray curtis distance matrix
+turtle_bray <- phyloseq::distance(turtle_scale, method = "bray")
+
+# make a data frame from the sample_data
+sampledf <- data.frame(sample_data(turtle))
+
+# Adonis test
+adonis(turtle_bray ~ Time, data = sampledf)
+
+# Homogeneity of dispersion test
+beta <- betadisper(turtle_bray, sampledf$Time)
+permutest(beta)
+
+###Alpha-Diversity###
+min_lib <- min(sample_sums(turtle))
+
+# Initialize matrices to store richness and evenness estimates
+nsamp = nsamples(turtle)
+trials = 100
+
+richness <- matrix(nrow = nsamp, ncol = trials)
+row.names(richness) <- sample_names(turtle)
+
+evenness <- matrix(nrow = nsamp, ncol = trials)
+row.names(evenness) <- sample_names(turtle)
+
+# It is always important to set a seed when you subsample so your result is replicable 
+set.seed(3)
+
+for (i in 1:100) {
+  # Subsample
+  r <- rarefy_even_depth(turtle, sample.size = min_lib, verbose = FALSE, replace = TRUE)
+  
+  # Calculate richness
+  rich <- as.numeric(as.matrix(estimate_richness(r, measures = "Observed")))
+  richness[ ,i] <- rich
+  
+  # Calculate evenness
+  even <- as.numeric(as.matrix(estimate_richness(r, measures = "InvSimpson")))
+  evenness[ ,i] <- even
+}
+
+# Create a new dataframe to hold the means and standard deviations of richness estimates
+SampleID <- row.names(richness)
+mean <- apply(richness, 1, mean)
+sd <- apply(richness, 1, sd)
+measure <- rep("Richness", nsamp)
+rich_stats <- data.frame(SampleID, mean, sd, measure)
+
+# Create a new dataframe to hold the means and standard deviations of evenness estimates
+SampleID <- row.names(evenness)
+mean <- apply(evenness, 1, mean)
+sd <- apply(evenness, 1, sd)
+measure <- rep("Inverse Simpson", nsamp)
+even_stats <- data.frame(SampleID, mean, sd, measure)
+
+alpha <- rbind(rich_stats, even_stats)
+s <- data.frame(sample_data(turtle))
+alphadiv <- merge(alpha, s, by = "SampleID") 
+
+#alphadiv <- order_dates(alphadiv)
+
+ggplot(alphadiv, aes(x = Time, y = mean, color = Treatment, group = Treatment, shape = Treatment)) +
+  geom_point(size = 2) + 
+  geom_line(size = 0.8) +
+  facet_wrap(~measure, ncol = 1, scales = "free") +
+  scale_color_manual(values = c("#E96446", "#302F3D") +
+  scale_x_discrete(
+    breaks = c("0 hours", "96 hours"),
+    labels = c("0 hours", "96 hours"), 
+    drop = FALSE
+  ) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
