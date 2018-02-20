@@ -1,3 +1,12 @@
+library(ggplot2)
+library(vegan)
+library(dplyr)
+library(scales)
+library(grid)
+library(reshape2)
+library(phyloseq)
+library(devtools)
+
 setwd("C:/Users/Joseph.Madison/Documents/turtle_glyphosate_experiment")
 getwd()
 source("MicrobeMiseq/R/miseqR.R")
