@@ -117,6 +117,7 @@ adonis(turtle_bray ~ Time, data = sampledf)
 beta <- betadisper(turtle_bray, sampledf$Time)
 permutest(beta)
 
+
 ###Alpha-Diversity###
 min_lib <- min(sample_sums(turtle))
 
@@ -165,18 +166,15 @@ s <- data.frame(sample_data(turtle))
 alphadiv <- merge(alpha, s, by = "SampleID") 
 
 #alphadiv <- order_dates(alphadiv)
+alphadiv
 
-ggplot(alphadiv, aes(x = Time, y = mean, color = Treatment, group = Treatment, shape = Treatment)) +
-  geom_point(size = 2) + 
-  geom_line(size = 0.8) +
-  facet_wrap(~measure, ncol = 1, scales = "free") +
-  scale_color_manual(values = c("#E96446", "#302F3D") +
-  scale_x_discrete(
-    breaks = c("0 hours", "96 hours"),
-    labels = c("0 hours", "96 hours"), 
-    drop = FALSE
-  ) +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
-  )
+p <- ggplot(alphadiv, aes(x = Time, y = mean, fill=Treatment, color = Treatment, group = Treatment, shape = Treatment)) +
+  facet_grid(measure ~ Treatment ~ Time, scales = "free") +
+  stat_boxplot(geom = "errorbar", color="black", position=position_dodge(1), width=0.25)+
+  geom_boxplot(color="black", outlier.shape=16, outlier.size=2, notch=FALSE, position=position_dodge(2))
+
+p
+p + scale_fill_grey() 
+
+###################################
+
