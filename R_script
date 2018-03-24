@@ -59,7 +59,7 @@ smax
 # Scale reads to even depth 
 turtle_scale <- turtle
 
-# Fix month levels in sample_data
+# Fix hour levels in sample_data
 sample_data(turtle_scale)$Time <- factor(
   sample_data(turtle_scale)$Time, 
   levels = c("0 hours", "96 hours")
@@ -130,7 +130,6 @@ permutest(beta)
 ###Alpha-Diversity###
 min_lib <- min(sample_sums(turtle))
 
-# Initialize matrices to store richness and evenness estimates
 nsamp = nsamples(turtle)
 trials = 100
 
@@ -140,30 +139,24 @@ row.names(richness) <- sample_names(turtle)
 evenness <- matrix(nrow = nsamp, ncol = trials)
 row.names(evenness) <- sample_names(turtle)
 
-# It is always important to set a seed when you subsample so your result is replicable 
 set.seed(3)
 
-for (i in 1:100) {
-  # Subsample
+for (i in 1:100) {  
   r <- rarefy_even_depth(turtle, sample.size = min_lib, verbose = FALSE, replace = TRUE)
   
-  # Calculate richness
   rich <- as.numeric(as.matrix(estimate_richness(r, measures = "Observed")))
   richness[ ,i] <- rich
   
-  # Calculate evenness
   even <- as.numeric(as.matrix(estimate_richness(r, measures = "InvSimpson")))
   evenness[ ,i] <- even
 }
 
-# Create a new dataframe to hold the means and standard deviations of richness estimates
 SampleID <- row.names(richness)
 mean <- apply(richness, 1, mean)
 sd <- apply(richness, 1, sd)
 measure <- rep("Richness", nsamp)
 rich_stats <- data.frame(SampleID, mean, sd, measure)
 
-# Create a new dataframe to hold the means and standard deviations of evenness estimates
 SampleID <- row.names(evenness)
 mean <- apply(evenness, 1, mean)
 sd <- apply(evenness, 1, sd)
@@ -174,7 +167,6 @@ alpha <- rbind(rich_stats, even_stats)
 s <- data.frame(sample_data(turtle))
 alphadiv <- merge(alpha, s, by = "SampleID") 
 
-#alphadiv <- order_dates(alphadiv)
 alphadiv
 
 p <- ggplot(alphadiv, aes(x = Time, y = mean, fill=Treatment, color = Treatment, group = Treatment, shape = Treatment)) +
@@ -186,4 +178,39 @@ p
 p + scale_fill_grey() 
 
 ###################################
+###BAR GRAPH###
 
+turtle_phylum <- turtle %>%
+  tax_glom(taxrank = "Phylum") %>%                     # agglomerate at phylum level
+  transform_sample_counts(function(x) {x/sum(x)} ) %>% # Transform to rel. abundance
+  psmelt() %>%                                         # Melt to long format
+  filter(Abundance > 0.02) %>%                         # Filter out low abundance taxa
+  arrange(Phylum)                                      # Sort data frame alphabetically by phylum
+
+# Set colors for plotting
+phylum_colors <- c(
+  "#CBD588", "#5F7FC7", "orange","#DA5724", "#508578", "#CD9BCD",
+   "#AD6F3B", "#673770","#D14285", "#652926", "#C84248", 
+  "#8569D5", "#5E738F","#D1A33D", "#8A7C64", "#599861"
+)
+
+# Plot 
+ggplot(turtle_phylum, aes(x = SampleID, y = Abundance, fill = Phylum)) + 
+  facet_wrap(Time ~ Treatment, scales = "free") +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = phylum_colors) +
+  scale_x_discrete(
+  ) + 
+  # Remove x axis title
+  theme(axis.title.x = element_blank()) + 
+  #
+  guides(fill = guide_legend(reverse = TRUE, keywidth = 1, keyheight = 2.1)) +
+  ylab("Relative Abundance (Phyla > 2%) \n") +
+  ggtitle("Phylum Composition of False Map Turtle Cloacal Microbiomes")+
+  theme_bw(base_size = 12) 
+  
+#################################
+###t-tests
+x = variable1
+y = variable2
+t.test(x,y)
